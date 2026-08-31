@@ -1,0 +1,48 @@
+name: Build Tetris ASM
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux-x86_64:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          as --version | head -n 1
+          ld --version | head -n 1
+
+      - name: Assemble and link
+        run: make
+
+      - name: Run assembly self-test
+        run: make check
+
+      - name: Verify executable format
+        run: |
+          file build/tetris
+          readelf -h build/tetris
+          if ldd build/tetris 2>&1 | grep -q "not a dynamic executable"; then
+            echo "OK: no dynamic runtime dependencies"
+          else
+            echo "Unexpected dynamic dependency state"
+            ldd build/tetris || true
+            exit 1
+          fi
+
+      - name: Upload Linux x86-64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: tetris-linux-x86_64
+          path: build/tetris
+          if-no-files-found: error
